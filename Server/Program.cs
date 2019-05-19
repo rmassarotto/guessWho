@@ -13,7 +13,6 @@ namespace Chat {
     class Servidor {
         private static TcpListener serverSocket = default(TcpListener);
         private static Socket clientSocket = default(Socket);
-
         private static readonly int maxClientsCount = 2;
         private static readonly handleClient[] clients = new handleClient[maxClientsCount];
 
@@ -55,6 +54,7 @@ namespace Chat {
         private String clientName;
         private StreamReader ins;
         private StreamWriter ots;
+        private String palavra;
 
         public void startClient(Socket inClientSocket, handleClient[] clients) {
             this.clientSocket = inClientSocket;
@@ -104,18 +104,10 @@ namespace Chat {
                 ots = new StreamWriter(new NetworkStream(clientSocket));
                 ots.AutoFlush = true;
                 String name;
-//                do {
-                    ots.WriteLine("*** Informe seu nome ***");
-                    name = ins.ReadLine().Trim();
-//                    if (checkCorrect(name)) { 
-//                        break; 
-//                    } else {
-//                        ots.WriteLine("*** O nome não pode ter caracteres especiais ***");
-//                        name = null;
-//                    }
-//                } while (true);
 
-                // Bienvenida al usuario
+                ots.WriteLine("*** Informe seu nome ***");
+                name = ins.ReadLine().Trim();
+
                 Console.WriteLine("Novo usuario: " + name);
                 ots.WriteLine("*** Ola " + name + " ***\n*** Para sair digite /quit ***");
                 ots.WriteLine("*** Para ver os usuarios conectados digite /list ***");
@@ -126,7 +118,7 @@ namespace Chat {
                             break;
                         }
                     }
-                    // Info al resto de usuarios
+
                     for(int i=0; i<maxClientsCount; i++) {
                         if(clients[i] != null && clients[i] != this) {
                             clients[i].ots.WriteLine("*** Novo usuario entrou: " + name + " ***");
@@ -134,12 +126,19 @@ namespace Chat {
                     }
                 }
 
-                // Comprobacion de un mensaje
+                if (clientSocket.Equals(clients[0].clientSocket))
+                {
+                    ots.WriteLine("Informe a palavra do jogo:");       
+                    palavra = ins.ReadLine();
+                    Console.WriteLine("Palavra do jogo: " + clients[0].palavra);
+                }
+
                 while(true) {
                     String line = ins.ReadLine();
                     if (line.StartsWith("/quit")) {
                         break;
                     }
+
                     if(line.StartsWith("/list")) {
                         for(int i=0; i<maxClientsCount; i++) {
                             if(clients[i] != null && clients[i] != this) {
@@ -147,9 +146,11 @@ namespace Chat {
                             }
                         }
                     }
+
                     if(line.Length < 2) {
                         ots.WriteLine("*** Mensagem muito curta***");
                     }
+
                     if(line.StartsWith("@")) {
                         String[] words = Regex.Split(line, "\\s");
                         if(words.Length > 1 && words[1] != null) {
@@ -179,9 +180,20 @@ namespace Chat {
                             }
                         }
                     }
-                }
+                    
+                    if (line == clients[0].palavra)
+                    {
+                        Console.WriteLine("Palavra adivinhada");
+                        lock(this) {
+                            for(int i=0; i<maxClientsCount; i++) {
+                                if(clients[i] != null && clients[i] != null) {
+                                    clients[i].ots.WriteLine("*** O usuario " + name + " acertou a palavra " + clients[0].palavra + " e o VENCEDOR ***");
+                                }
+                            }
+                        }
+                    }
+                }             
 
-                // Salida de usuario
                 Console.WriteLine("Usuario " + name + " se desconectou");
                 lock(this) {
                     for(int i=0; i<maxClientsCount; i++) {
