@@ -13,7 +13,7 @@ namespace Chat {
     class Servidor {
         private static TcpListener serverSocket = default(TcpListener);
         private static Socket clientSocket = default(Socket);
-        private static readonly int maxClientsCount = 2;
+        private static readonly int maxClientsCount = 4;
         private static readonly handleClient[] clients = new handleClient[maxClientsCount];
 
         static void Main(string[] args) {
@@ -55,6 +55,7 @@ namespace Chat {
         private StreamReader ins;
         private StreamWriter ots;
         private String palavra;
+        private int jogadorDaVez;
 
         public void startClient(Socket inClientSocket, handleClient[] clients) {
             this.clientSocket = inClientSocket;
@@ -72,32 +73,9 @@ namespace Chat {
             Thread ctThread = new Thread(doChat);
             ctThread.Start();
         }
-
-        private Boolean checkCorrect(String s) {
-            if (s.Equals("") || s.Equals("\n")) {
-                return false;
-            }
-
-            for (int i = 0; i < s.Length; i++) {
-                if (!char.IsLetterOrDigit(s.ElementAt(i))) {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
-        private Boolean checkCommand(String s) {
-            if (s.Equals("/list") || s.Equals("/quit") || s.Equals("") || s.Equals("\n")) {
-                return true;
-            }
-
-            return false;
-        }
-
         private void doChat() {
             int maxClientsCount = this.maxClientsCount;
-            handleClient[] clients = this.clients;
+            handleClient[] clients = this.clients;            
 
             try {
                 ins = new StreamReader(new NetworkStream(clientSocket));
@@ -110,7 +88,7 @@ namespace Chat {
 
                 Console.WriteLine("Novo usuario: " + name);
                 ots.WriteLine("*** Ola " + name + " ***\n*** Para sair digite /quit ***");
-                ots.WriteLine("*** Para ver os usuarios conectados digite /list ***");
+                //ots.WriteLine("*** Para ver os usuarios conectados digite /list ***");
                 lock(this) {
                     for(int i=0; i<maxClientsCount; i++) {
                         if(clients[i] != null && clients[i] == this) {
@@ -133,65 +111,80 @@ namespace Chat {
                     Console.WriteLine("Palavra do jogo: " + clients[0].palavra);
                 }
 
-                while(true) {
-                    String line = ins.ReadLine();
-                    if (line.StartsWith("/quit")) {
-                        break;
-                    }
+                while(true) {                
+                    //Console.WriteLine(jogadorDaVez);
+                    //Console.WriteLine(clients.Length);
+                    if (clientSocket.Equals(clients[0].clientSocket) || clientSocket.Equals(clients[jogadorDaVez].clientSocket))
+                    {
+                        String line = ins.ReadLine();                            
+                        
+                        if (line.StartsWith("/quit")) {
+                            break;
+                        }
 
-                    if(line.StartsWith("/list")) {
-                        for(int i=0; i<maxClientsCount; i++) {
-                            if(clients[i] != null && clients[i] != this) {
-                                ots.WriteLine(clients[i].clientName);
+                        if(line.StartsWith("/list")) {
+                            for(int i=0; i<maxClientsCount; i++) {
+                                if(clients[i] != null && clients[i] != this) {
+                                    ots.WriteLine(clients[i].clientName);
+                                }
                             }
                         }
-                    }
 
-                    if(line.Length < 2) {
-                        ots.WriteLine("*** Mensagem muito curta***");
-                    }
+                        //if(line.Length < 2) {
+                        //    ots.WriteLine("*** Mensagem muito curta***");
+                        //}
 
-                    if(line.StartsWith("@")) {
-                        String[] words = Regex.Split(line, "\\s");
-                        if(words.Length > 1 && words[1] != null) {
-                            words[1] = words[1].Trim();
-                            if (words[1].Any()) {
-                                lock(this) {
-                                    for(int i=0; i<maxClientsCount; i++) {
-                                        if(clients[i] != null && clients[i] != this
-                                            && clients[i].clientName != null
-                                            && clients[i].clientName.Equals(words[0])) {
-                                            clients[i].ots.WriteLine("<" + name + "> " + words[1]);
-                                            this.ots.WriteLine(">" + name + "> " + words[1]);
-                                            break;
+                        if(line.StartsWith("@")) {
+                            String[] words = Regex.Split(line, "\\s");
+                            if(words.Length > 1 && words[1] != null) {
+                                words[1] = words[1].Trim();
+                                if (words[1].Any()) {
+                                    lock(this) {
+                                        for(int i=0; i<maxClientsCount; i++) {
+                                            if(clients[i] != null && clients[i] != this
+                                                && clients[i].clientName != null
+                                                && clients[i].clientName.Equals(words[0])) {
+                                                clients[i].ots.WriteLine("<" + name + "> " + words[1]);
+                                                this.ots.WriteLine(">" + name + "> " + words[1]);
+                                                break;
+                                            }
                                         }
                                     }
                                 }
                             }
+                        } else {
+                            lock(this) {
+                                //if(!checkCommand(line)) {
+                                    for(int i=0; i<maxClientsCount; i++) {
+                                        if(clients[i] != null && clients[i].clientName != null) {
+                                            clients[i].ots.WriteLine("<" + name + "> " + line);
+                                        }
+                                    }
+                                //}
+                            }
                         }
-                    } else {
-                        lock(this) {
-                            if(!checkCommand(line)) {
+                        
+                        if (line == clients[0].palavra)
+                        {
+                            Console.WriteLine("Palavra adivinhada");
+                            lock(this) {
                                 for(int i=0; i<maxClientsCount; i++) {
-                                    if(clients[i] != null && clients[i].clientName != null) {
-                                        clients[i].ots.WriteLine("<" + name + "> " + line);
+                                    if(clients[i] != null && clients[i] != null) {
+                                        clients[i].ots.WriteLine("*** O usuario " + name + " acertou a palavra " + clients[0].palavra + " e o VENCEDOR ***");
                                     }
                                 }
                             }
                         }
-                    }
-                    
-                    if (line == clients[0].palavra)
-                    {
-                        Console.WriteLine("Palavra adivinhada");
-                        lock(this) {
-                            for(int i=0; i<maxClientsCount; i++) {
-                                if(clients[i] != null && clients[i] != null) {
-                                    clients[i].ots.WriteLine("*** O usuario " + name + " acertou a palavra " + clients[0].palavra + " e o VENCEDOR ***");
-                                }
-                            }
-                        }
-                    }
+
+                        if (clientSocket.Equals(clients[jogadorDaVez].clientSocket))
+                        {
+                            jogadorDaVez++;                       
+                        }                        
+                      
+                    } else {
+                        String line = ins.ReadLine();
+                        ots.WriteLine("*** Aguarde sua vez! ***");
+                    } 
                 }             
 
                 Console.WriteLine("Usuario " + name + " se desconectou");
